@@ -15,7 +15,7 @@ mpl.rc('font',family='Arial')
 all datasets for this code can be downloaded from Zenodo.org (see README for details).
 '''
 
-# open dataframe of lightning-caused fires and precipitation amounts
+# open dataframe of lightning-caused fires and MRMS precipitation amounts
 infile = open("all_matched2.pkl",'rb')
 all_matched = pickle.load(infile)
 infile.close()
