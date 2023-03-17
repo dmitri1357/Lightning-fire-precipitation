@@ -4,6 +4,7 @@
 NOTE: This code only combines wildfire, lightning, and MRMS precipitation data for fires which had lightning on the wildfire discovery date (Day 0). 
 The lagged days (Day-1, Day-2, etc) were processed separately using the same code but with a date offset corresponding to the lag. 
 The code was repeated for the IMERG and gridMET precipitation datasets.
+Finally, the code was also repeated for the gridMET atmospheric and fuel moisture variables for each fire that were extracted the same way.
 '''
 
 import pickle
