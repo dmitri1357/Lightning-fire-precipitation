@@ -312,5 +312,7 @@ cg_precs_all = np.concatenate([cg_precs_2015,cg_precs_2016,cg_precs_2017,cg_prec
                                cg_precs_2019,cg_precs_2020])
 
 np.save('cp_precs_all0_closest_cg_2km.npy',cg_precs_all)
-cg_precs_all = np.load('cp_precs_all0_closest_cg_2km.npy')
+
+# After the above code is ran for all lags (Day-0 through Day-5), the results are combined into a dataframe "all_matched2.pkl" 
+# This dataframe is available on the Zenodo repository
 
