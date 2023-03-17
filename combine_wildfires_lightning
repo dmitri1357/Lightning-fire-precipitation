@@ -1,1 +1,316 @@
 #!/usr/bin/env python3
+
+'''
+NOTE: This code only combines wildfire, lightning, and precipitation data for fires which had lightning on the wildfire discovery date (Day 0). 
+The lagged days (Day-1, Day-2, etc) were processed separately using the same code but with a date offset corresponding to the lag. 
+'''
+
+import pickle
+import pandas as pd
+import geopandas as gpd
+from geopandas import GeoDataFrame
+import numpy as np
+from tqdm import tqdm
+from shapely.geometry import Point
+from itertools import compress
+from geopy.distance import great_circle
+import rasterio
+from rasterio.transform import from_origin
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# geodataframe of NLDN lightning point locations
+infile = open("nldn_gdf.pkl",'rb')
+nldn_gdf = pickle.load(infile)
+infile.close()
+
+# dataframe of pre-processed NIFC fires
+infile = open("nifc_fires.pkl",'rb')
+nifc_fires = pickle.load(infile)
+infile.close()
+
+# turn NIFC dataframe into Geodataframe
+lats = np.array(nifc_fires.Y)
+lons = np.array(nifc_fires.X)
+days = np.array(nifc_fires.day_idx)
+geometry = [Point(xy) for xy in zip(nifc_fires.X, nifc_fires.Y)]
+nifc_gdf = GeoDataFrame(nifc_fires, crs='epsg:4326', geometry=geometry)
+del nifc_fires, geometry
+
+# this loop matches wildfires with lightning
+fire_cg_dist0_closest = []
+fire_cg_lats0_closest = []
+fire_cg_lons0_closest = []
+fire_cg_days0_closest = []
+fire_cg_idx0_closest = []
+fire_cg_ecoprov_closest = []
+for k in tqdm(range(4651)): # loop over 4651 fires
+    lat = lats[k]
+    lon = lons[k]
+    day = days[k]
+    nifc_point = nifc_gdf.geometry.iloc[k]
+    # before searching for lightning, subset to a 0.1 degree buffer around the fire
+    # this way, the algorithm doesn't have to search the entire western US for the closest lightning strike
+    buffer = nifc_point.buffer(0.1) 
+    arrday = nldn_gdf[nldn_gdf.day_idx == day]
+    point_list = nldn_gdf.geometry[nldn_gdf.day_idx == day]
+    mats = [buffer.contains(point_list.iloc[i]) for i in range(len(point_list))] # check for any lightning within 0.1 degree buffer
+    if np.sum(mats) > 0: # only executes code if lightning was found within 0.1 degrees of fire
+        points = list(compress(point_list,mats))
+        lons1 = []
+        lats1 = []
+        for b in range(np.sum(mats)):
+            p = points[b]
+            tup = list(p.coords)
+            lons1.append(tup[0][0])
+            lats1.append(tup[0][1])
+        day_dists = []
+        latx = []
+        lonx = []
+        for x in range(len(lons1)):
+            p1 = (lat,lon)
+            p2 = (lats1[x],lons1[x])
+            day_dists.append(great_circle(p1,p2).meters) # using great circle distance search for closest lightning strike (in meters)
+            latx.append(lats1[x])
+            lonx.append(lons1[x])
+        dfz = pd.DataFrame({'x1':day_dists,'x2':latx,'x3':lonx})
+        if np.min(day_dists) < 2000: # since I'm using a 2 km search radius, this code only collects fires if lightning was found within 2000 meters
+            fire_cg_dist0_closest.append(np.min(day_dists)) # collect distance of closest lightning strike to fire
+            fire_cg_lats0_closest.append(dfz.x2.iloc[np.argmin(dfz.x1)]) # collect latitude of closest lightning strike to fire
+            fire_cg_lons0_closest.append(dfz.x3.iloc[np.argmin(dfz.x1)]) # collect longitude of closest lightning strike to fire
+            fire_cg_days0_closest.append(day) # collect day of closest lightning strike to fire
+            fire_cg_idx0_closest.append(k) # collect index, to be used later
+            fire_cg_ecoprov_closest.append(nifc_gdf.index_right[k]) # collect the ecoprovince of this fire 
+
+np.save('fire_cg_dist0_closest_2km',fire_cg_dist0_closest)
+np.save('fire_cg_lats0_closest_2km',fire_cg_lats0_closest)
+np.save('fire_cg_lons0_closest_2km',fire_cg_lons0_closest)
+np.save('fire_cg_days0_closest_2km',fire_cg_days0_closest)
+np.save('fire_cg_idx0_closest_2km',fire_cg_idx0_closest)
+np.save('fire_cg_ecoprov_closest_2km',fire_cg_ecoprov_closest)
+
+fire_cg_dist0 = np.load('fire_cg_dist0_closest_2km.npy')
+fire_cg_lats0 = np.load('fire_cg_lats0_closest_2km.npy')
+fire_cg_lons0 = np.load('fire_cg_lons0_closest_2km.npy')
+fire_cg_days0 = np.load('fire_cg_days0_closest_2km.npy')
+fire_cg_idx0 = np.load('fire_cg_idx0_closest_2km.npy')
+fire_cg_ecoprov = np.load('fire_cg_ecoprov_closest_2km.npy')
+
+# 2314 fires (of 4651) were matched to lightning on the same day as fire discovery
+matched = pd.DataFrame({'lat':fire_cg_lats0,'lon':fire_cg_lons0,
+                        'day':fire_cg_days0,'fire_idx':fire_cg_idx0,
+                        'dist':fire_cg_dist0,'ecoprov':fire_cg_ecoprov})
+matched_cg = matched.sort_values(by='day')
+matched_cg.reset_index(inplace=True)
+matched_cg.drop(columns='index',inplace=True)
+
+import pickle
+f = open("matched_cg0_closest_2km.pkl","wb")
+pickle.dump(matched_cg,f)
+f.close()
+
+infile = open("matched_cg0_closest_2km.pkl",'rb')
+matched_cg0 = pickle.load(infile)
+infile.close()
+
+# from here until the end of the file, I am processing the years 2015-2020 separately to keep things straight
+# this could also be done in one large loop
+
+# extract daily index for each year
+dates = pd.date_range(start='1/1/2015', end='12/31/2020')
+dates = pd.DataFrame({'date':dates})
+dates['year'] = pd.to_datetime(dates.date).dt.year
+idx2015 = dates[dates.year == 2015].index.values
+idx2016 = dates[dates.year == 2016].index.values
+idx2017 = dates[dates.year == 2017].index.values
+idx2018 = dates[dates.year == 2018].index.values
+idx2019 = dates[dates.year == 2019].index.values
+idx2020 = dates[dates.year == 2020].index.values
+
+matched_cg_2015 = matched_cg0[matched_cg0.day.isin(idx2015)]
+matched_cg_2016 = matched_cg0[matched_cg0.day.isin(idx2016)]
+matched_cg_2017 = matched_cg0[matched_cg0.day.isin(idx2017)]
+matched_cg_2018 = matched_cg0[matched_cg0.day.isin(idx2018)]
+matched_cg_2019 = matched_cg0[matched_cg0.day.isin(idx2019)]
+matched_cg_2020 = matched_cg0[matched_cg0.day.isin(idx2020)]
+
+# need to exclude any fires which matched to CG at the end of April, or October 1
+# that way I am only including ignitions (and precip amounts) from MJJAS
+
+dates = pd.date_range(start='1/1/2015', end='12/31/2020')
+dates = pd.DataFrame({'date':dates})
+dates['month'] = pd.to_datetime(dates.date).dt.month
+mjjas = dates[dates.month.isin([5,6,7,8,9])]
+mjjas_mrms = mjjas.iloc[6:].index.values
+
+matched_cg_2015 = matched_cg_2015[matched_cg_2015.day.isin(mjjas_mrms)]
+matched_cg_2016 = matched_cg_2016[matched_cg_2016.day.isin(mjjas_mrms)]
+matched_cg_2017 = matched_cg_2017[matched_cg_2017.day.isin(mjjas_mrms)]
+matched_cg_2018 = matched_cg_2018[matched_cg_2018.day.isin(mjjas_mrms)]
+matched_cg_2019 = matched_cg_2019[matched_cg_2019.day.isin(mjjas_mrms)]
+matched_cg_2020 = matched_cg_2020[matched_cg_2020.day.isin(mjjas_mrms)]
+# still the same number of matches because this is just for day 0 - this will change when matching lagged days (Day-1, Day-2, etc)
+
+df = pd.concat([matched_cg_2015,matched_cg_2016,matched_cg_2017,
+                matched_cg_2018,matched_cg_2019,matched_cg_2020])
+np.save('fire_cg_dist_day0_mjjas_only',np.array(df.dist))
+dist0 = np.load('fire_cg_dist_day0_mjjas_only.npy')
+np.median(dist0) # 0.44 km is the median distance between fires and matched lightning strikes
+
+np.save('fire_lats_mjjas0',df.lat)
+np.save('fire_lons_mjjas0',df.lon)
+np.save('fire_days_mjjas0',df.day)
+np.save('fire_ecoprov_mjjas0',df.ecoprov)
+
+# starting overlay of MRMS precip with NLDN lightning points
+
+import geopandas as gpd
+gdf_2015 = gpd.GeoDataFrame(
+    matched_cg_2015, geometry=gpd.points_from_xy(matched_cg_2015.lon, matched_cg_2015.lat))
+del matched_cg_2015
+
+gdf_2016 = gpd.GeoDataFrame(
+    matched_cg_2016, geometry=gpd.points_from_xy(matched_cg_2016.lon, matched_cg_2016.lat))
+del matched_cg_2016
+
+gdf_2017 = gpd.GeoDataFrame(
+    matched_cg_2017, geometry=gpd.points_from_xy(matched_cg_2017.lon, matched_cg_2017.lat))
+del matched_cg_2017
+
+gdf_2018 = gpd.GeoDataFrame(
+    matched_cg_2018, geometry=gpd.points_from_xy(matched_cg_2018.lon, matched_cg_2018.lat))
+del matched_cg_2018
+
+gdf_2019 = gpd.GeoDataFrame(
+    matched_cg_2019, geometry=gpd.points_from_xy(matched_cg_2019.lon, matched_cg_2019.lat))
+del matched_cg_2019
+
+gdf_2020 = gpd.GeoDataFrame(
+    matched_cg_2020, geometry=gpd.points_from_xy(matched_cg_2020.lon, matched_cg_2020.lat))
+del matched_cg_2020
+
+# extracting warm season indexes
+dates = pd.date_range(start='1/1/2015', end='12/31/2015')
+idx_2015 = np.arange(126,273,1)
+dates = pd.date_range(start='1/1/2016', end='12/31/2016')
+idx_2016 = np.arange(121,274,1)
+dates = pd.date_range(start='1/1/2017', end='12/31/2017')
+idx_2017 = np.arange(120,273,1)
+dates = pd.date_range(start='1/1/2018', end='12/31/2018')
+idx_2018 = np.arange(120,273,1)
+dates = pd.date_range(start='1/1/2019', end='12/31/2019')
+idx_2019 = np.arange(120,273,1)
+dates = pd.date_range(start='1/1/2020', end='12/31/2020')
+idx_2020 = np.arange(121,274,1)
+
+# this matches the gdf day to the warm-season array index (e.g. 126 --> 0 [May 7, 2015])
+d = np.where(idx_2015 == gdf_2015.day.iloc[0])[0]
+
+# the loops below are separated into each year
+# for each fire, using "rasterio" package to open a daily raster of MRMS precipitation corresponding to the day of the fire-causing lightning strike
+
+cg_precs_2015 = np.empty(gdf_2015.shape[0])
+for k in tqdm(range(gdf_2015.shape[0])):
+    fire = gdf_2015.iloc[k,:]
+    prec_idx = int(np.where(idx_2015 == fire.day)[0])
+    raster = rasterio.open('mrms_2015_{}.tif'.format(prec_idx)) # opens daily raster of MRMS precip
+    lon_dups = [fire.geometry.x,fire.geometry.x]
+    lat_dups = [fire.geometry.y,fire.geometry.y]
+    coords = zip(lon_dups,lat_dups)
+    duped_prec = [x[0] for x in raster.sample(coords)] # samples the MRMS raster at the lighting-fire point to extract the precip from that grid cell
+    raster.close()
+    cg_precs_2015[k] = duped_prec[0] # since they're duplicated, just extract the first value
+
+fire_idx_2016 = gdf_2016.fire_idx.unique()
+cg_precs_2016 = []
+for k in tqdm(range(len(fire_idx_2016))):
+    fire_id = fire_idx_2016[k]
+    fire = gdf_2016[gdf_2016.fire_idx == fire_id].reset_index()
+    prec_idx = int(np.where(idx_2016 == fire.day[0]-365)[0])
+    raster = rasterio.open('mrms_2016_{}.tif'.format(prec_idx))
+    cg_lons = fire.geometry.x
+    cg_lats = fire.geometry.y
+    coords = zip(cg_lons,cg_lats)
+    precs = [x[0] for x in raster.sample(coords)]
+    row, col = raster.index(cg_lons,cg_lats)
+    fire_df = pd.DataFrame({'row':row,'col':col,'prec':precs})
+    fire_df = fire_df.drop_duplicates()
+    raster.close()
+    cg_precs_2016.extend(fire_df.prec)
+
+fire_idx_2017 = gdf_2017.fire_idx.unique()
+cg_precs_2017 = []
+for k in tqdm(range(len(fire_idx_2017))):
+    fire_id = fire_idx_2017[k]
+    fire = gdf_2017[gdf_2017.fire_idx == fire_id].reset_index()
+    prec_idx = int(np.where(idx_2017 == fire.day[0]-365-366)[0])
+    raster = rasterio.open('mrms_2017_{}.tif'.format(prec_idx))
+    cg_lons = fire.geometry.x
+    cg_lats = fire.geometry.y
+    coords = zip(cg_lons,cg_lats)
+    precs = [x[0] for x in raster.sample(coords)]
+    row, col = raster.index(cg_lons,cg_lats)
+    fire_df = pd.DataFrame({'row':row,'col':col,'prec':precs})
+    fire_df = fire_df.drop_duplicates()
+    raster.close()
+    cg_precs_2017.extend(fire_df.prec)
+
+fire_idx_2018 = gdf_2018.fire_idx.unique()
+cg_precs_2018 = []
+for k in tqdm(range(len(fire_idx_2018))):
+    fire_id = fire_idx_2018[k]
+    fire = gdf_2018[gdf_2018.fire_idx == fire_id].reset_index()
+    prec_idx = int(np.where(idx_2018 == fire.day[0]-365-366-365)[0])
+    raster = rasterio.open('mrms_2018_{}.tif'.format(prec_idx))
+    cg_lons = fire.geometry.x
+    cg_lats = fire.geometry.y
+    coords = zip(cg_lons,cg_lats)
+    precs = [x[0] for x in raster.sample(coords)]
+    row, col = raster.index(cg_lons,cg_lats)
+    fire_df = pd.DataFrame({'row':row,'col':col,'prec':precs})
+    fire_df = fire_df.drop_duplicates()
+    raster.close()
+    cg_precs_2018.extend(fire_df.prec)
+
+fire_idx_2019 = gdf_2019.fire_idx.unique()
+cg_precs_2019 = []
+for k in tqdm(range(len(fire_idx_2019))):
+    fire_id = fire_idx_2019[k]
+    fire = gdf_2019[gdf_2019.fire_idx == fire_id].reset_index()
+    prec_idx = int(np.where(idx_2019 == fire.day[0]-365-366-365-365)[0])
+    raster = rasterio.open('mrms_2019_{}.tif'.format(prec_idx))
+    cg_lons = fire.geometry.x
+    cg_lats = fire.geometry.y
+    coords = zip(cg_lons,cg_lats)
+    precs = [x[0] for x in raster.sample(coords)]
+    row, col = raster.index(cg_lons,cg_lats)
+    fire_df = pd.DataFrame({'row':row,'col':col,'prec':precs})
+    fire_df = fire_df.drop_duplicates()
+    raster.close()
+    cg_precs_2019.extend(fire_df.prec)
+
+fire_idx_2020 = gdf_2020.fire_idx.unique()
+cg_precs_2020 = []
+for k in tqdm(range(len(fire_idx_2020))):
+    fire_id = fire_idx_2020[k]
+    fire = gdf_2020[gdf_2020.fire_idx == fire_id].reset_index()
+    prec_idx = int(np.where(idx_2020 == fire.day[0]-365-366-365-365-365)[0])
+    raster = rasterio.open('mrms_2020_{}.tif'.format(prec_idx))
+    cg_lons = fire.geometry.x
+    cg_lats = fire.geometry.y
+    coords = zip(cg_lons,cg_lats)
+    precs = [x[0] for x in raster.sample(coords)]
+    row, col = raster.index(cg_lons,cg_lats)
+    fire_df = pd.DataFrame({'row':row,'col':col,'prec':precs})
+    fire_df = fire_df.drop_duplicates()
+    raster.close()
+    cg_precs_2020.extend(fire_df.prec)
+
+cg_precs_all = np.concatenate([cg_precs_2015,cg_precs_2016,cg_precs_2017,cg_precs_2018,
+                               cg_precs_2019,cg_precs_2020])
+
+np.save('cp_precs_all0_closest_cg_2km.npy',cg_precs_all)
+cg_precs_all = np.load('cp_precs_all0_closest_cg_2km.npy')
+
