@@ -1,1 +1,52 @@
 #!/usr/bin/env python3
+
+import pandas as pd
+import pickle
+import geopandas as gpd
+import matplotlib.pyplot as plt   
+from mpl_toolkits.basemap import Basemap
+
+# set figure font to Arial
+import matplotlib as mpl
+mpl.rc('font',family='Arial')
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# open dataframe of lightning-caused fires and precipitation amounts
+infile = open("all_matched2.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# open shapefile of ecoprovinces as Geodataframe
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+
+eco_counts = all_matched.groupby('ecoprov').agg('count') # count fires in each ecoprovince
+eco_precs = all_matched.groupby('ecoprov').agg('median') # get median precipitation amount in each ecoprovince
+
+eco_counts1 = list(eco_counts.lat)
+eco_counts1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_counts1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['nfires'] = eco_counts1 # add fire count to geodataframe
+eco_precs1 = list(eco_precs.prec)
+eco_precs1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_precs1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['prec'] = eco_precs1 # add precip amounts to geodataframe
+
+# import shapefile of US states, and subset to western US
+states = gpd.read_file('cb_2018_us_state_5m.shp')
+states = states.to_crs("EPSG:4326")
+states = states[states.NAME.isin(['Washington','Oregon','Idaho','Montana',
+                                  'California','Nevada','Utah','Wyoming',
+                                  'Colorado','Arizona','New Mexico'])]
+
+# plot Figure 1a - number of matched fires in each ecoprovince
+ecoplot = ecoprovinces.plot(column='nfires', legend=True, cmap=plt.cm.get_cmap('YlOrRd',8), 
+                            edgecolor='k', vmin = 0, vmax = 800)
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+plt.title('Number of fires matched to \n lightning in each ecoprovince', size=17)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=15)
