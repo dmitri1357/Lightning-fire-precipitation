@@ -221,7 +221,7 @@ for k in tqdm(range(gdf_2015.shape[0])):
     lon_dups = [fire.geometry.x,fire.geometry.x]
     lat_dups = [fire.geometry.y,fire.geometry.y]
     coords = zip(lon_dups,lat_dups)
-    duped_prec = [x[0] for x in raster.sample(coords)] # samples the MRMS raster at the lighting-fire point to extract the precip from that grid cell
+    duped_prec = [x[0] for x in raster.sample(coords)] # samples the MRMS raster at the lightning-fire point to extract the precip from that grid cell
     raster.close()
     cg_precs_2015[k] = duped_prec[0] # since they're duplicated, just extract the first value
 
