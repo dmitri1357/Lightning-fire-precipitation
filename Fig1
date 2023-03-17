@@ -1,1 +1,150 @@
 #!/usr/bin/env python3
+
+import pandas as pd
+import numpy as np
+from tqdm import tqdm
+import pickle
+import geopandas as gpd
+import matplotlib.pyplot as plt   
+from mpl_toolkits.basemap import Basemap
+
+# set figure font to Arial
+import matplotlib as mpl
+mpl.rc('font',family='Arial')
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# CSV of wildfire locations from the National Interagency Fire Center
+df = pd.read_csv('WFIGS_-_Wildland_Fire_Locations_Full_History_july2022.csv')
+
+# subset to western US
+df = df[(df.X >= -125)&(df.X <= -104)]
+df = df[(df.Y >= 31)&(df.Y <= 49)]
+
+# trim up database before further processing by excluding obvious human-related causes
+df = df[df.FireCause != 'Human']
+df = df[df.FireCauseGeneral != 'Camping']
+df = df[df.FireCauseGeneral != 'Other Human Cause']
+df = df[df.FireCauseGeneral != 'Railroad']
+df = df[df.FireCauseGeneral != 'Smoking']
+df = df[df.FireCauseGeneral != 'Utilities']
+df = df[df.FireCauseGeneral != 'Equipment']
+df = df[df.FireCauseGeneral != 'Debris/Open Burning']
+df = df[df.FireCauseGeneral != 'Coal Seam']
+df = df[df.FireCauseGeneral != 'Debris Burning (Fire Use)']
+df = df[df.FireCauseGeneral != 'Firearms/Weapons']
+df = df[df.FireCauseGeneral != 'Incendiary']
+
+df['year'] = pd.to_datetime(df.FireDiscoveryDateTime).dt.year
+df['month'] = pd.to_datetime(df.FireDiscoveryDateTime).dt.month
+df['day'] = pd.to_datetime(df.FireDiscoveryDateTime).dt.day
+
+# subset to 2015-2020
+df = df[(df.year >= 2015)&(df.year <= 2020)]
+
+# subset to May-September
+df = df[df['month'].isin([5,6,7,8,9])]
+
+# assign each day a unique index value, to be used when matching with lightning data
+dates = pd.date_range(start='1/1/2015', end='12/31/2020')
+df1 = pd.DataFrame({'Date':dates})
+df1['year'] = pd.to_datetime(df1.Date).dt.year
+df1['month'] = pd.to_datetime(df1.Date).dt.month
+df1['day'] = pd.to_datetime(df1.Date).dt.day
+day_idx = np.empty(56625) # after filtering to MJJAS
+for k in tqdm(range(56625)):
+    row = df.iloc[k,:]
+    dfx = df1[(df1.year==row[-3])&(df1.month==row[-2])&(df1.day==row[-1])]
+    day_idx[k] = dfx.index.values
+df['day_idx'] = day_idx
+
+# subsetting to fires >1 ha
+df['hectares'] = df.DailyAcres / 2.471
+df = df[df.hectares > 1]
+
+# subset to only fires that were either "natural" or "lightning" caused
+# this is necessary because some fires were marked as lightning, but not natural and vice versa
+df = df[(df.FireCauseGeneral == 'Lightning')|(df.FireCause == 'Natural')] # 5898 fires
+
+# Checking for duplicate entries of fires
+df = df.reset_index()
+df.drop(columns='index',inplace=True)
+lons = np.round(df.X,2) # when rounding to 2 digits, any fires within 1 km will appear in the same location = will be treated as duplicates
+lats = np.round(df.Y,2) # as above
+days = df.day_idx
+new_df = pd.DataFrame({'lon':lons,'lat':lats,'day':days})
+new_df = new_df.reset_index()
+new_df.drop(columns='index',inplace=True)
+blah = new_df.duplicated()
+drop_idx = np.where(blah == 1)[0] # 20 entries are duplicated
+df.drop(drop_idx,inplace=True) # now 5878 fires
+df['day_idx'] = df.day_idx.astype('int32')
+
+f = open("nifc_fires.pkl","wb")
+pickle.dump(df,f)
+f.close()
+
+infile = open("nifc_fires.pkl",'rb')
+nifc_fires = pickle.load(infile)
+infile.close()
+
+# turn the dataframe of fires into a GeoDataframe
+nifc_gdf = gpd.GeoDataFrame(
+    nifc_fires, geometry=gpd.points_from_xy(nifc_fires.X, nifc_fires.Y), crs='EPSG:4326')
+
+# import shapefile of ecoprovinces that I created in QGIS
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+
+# assign fires to ecoprovinces using spatial join from Geopandas 
+data_merged = gpd.sjoin(nifc_gdf, ecoprovinces, how="inner", op='within')
+
+# removing duplicate entries again, since some duplication occurred during spatial join
+df = data_merged
+df = df.reset_index()
+df.drop(columns='index',inplace=True)
+lons = np.round(df.X,2)
+lats = np.round(df.Y,2)
+days = df.day_idx
+new_df = pd.DataFrame({'lon':lons,'lat':lats,'day':days})
+new_df = new_df.reset_index()
+new_df.drop(columns='index',inplace=True)
+blah = new_df.duplicated()
+drop_idx = np.where(blah == 1)[0] 
+df.drop(drop_idx,inplace=True) # now 4651 fires 
+df['day_idx'] = df.day_idx.astype('int32')
+df.reset_index(inplace=True)
+df.drop(columns='index',inplace=True)
+
+f = open("nifc_fires.pkl","wb")
+pickle.dump(df,f)
+f.close()
+
+infile = open("nifc_fires.pkl",'rb')
+nifc_fires = pickle.load(infile)
+infile.close()
+
+# plot the fire locations and ecoprovince boundaries - this is Figure S1 of the paper
+plt.figure(figsize=(10, 8))
+m = Basemap(projection='lcc', area_thresh=10000, resolution='l',
+            width=2.2E6, height=2.2E6,
+            lat_0=40.5, lon_0=-115)
+m.fillcontinents(color='white',lake_color='white',alpha=1,zorder=0)
+m.drawstates(linewidth=0.5,linestyle='solid',color='k')
+m.drawcountries(linewidth=0.5,linestyle='solid',color='k')
+m.drawcoastlines(color='black')
+m.scatter(list(nifc_fires.X), list(nifc_fires.Y), latlon=True, c='r')
+plt.title('>1 $Ha^*$ natural fires from NIFC database \n for MJJAS 2015-2020 (n = 4651 fires)', size=20)
+m.readshapefile('western_ecoprovinces',name='null',color='k',linewidth=3)
+plt.show()
+plt.axis('off')
+
+# sum the total burned area by these 4651 fires
+nifc_fires.hectares.sum() # 5.79 million ha
+
+
+
+
+
+
