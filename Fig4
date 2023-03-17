@@ -1,2 +1,581 @@
 #!/usr/bin/env python3
 
+import pandas as pd
+import numpy as np
+import pickle
+import geopandas as gpd
+import matplotlib.pyplot as plt   
+from mpl_toolkits.basemap import Basemap
+
+# set figure font to Arial
+import matplotlib as mpl
+mpl.rc('font',family='Arial')
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# Plot Figure 4b (before 4a)
+
+# open dataframe of gridMET-derived VPD for each lightning fire
+infile = open("all_matched2_vpd.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# sort by ecoprovince (all fires - not used in this version of the figure)
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_fm100 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+# open the precip dataframe
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+
+# create index for promptly-detected fires
+matched_gdf = matched_gdf[matched_gdf.lag.isin([0,1])]
+idxx = matched_gdf.index.values
+
+# reopen the VPD dataframe and subset by the promptly-detected index
+infile = open("all_matched2_vpd.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+# sort by ecoprovince for promptly-detected fires
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_nonhold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+# reopen precip dataframe
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+
+# create index for holdover fires
+matched_gdf = matched_gdf[matched_gdf.lag.isin([2,3,4,5])]
+idxx = matched_gdf.index.values
+
+# reopen VPD dataframe and subset by holdover index
+infile = open("all_matched2_vpd.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+# sort by ecoprovince for holdover fires
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_hold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_fm100[k]) # only 3716 fires since 10 are excluded from low-sample provinces
+mean_all = np.mean(list_all)
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_nonhold[k]) 
+mean_nonhold = np.mean(list_all)
+
+boxlist_hold2 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde] # including "amde" for full distribution
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_hold2[k]) 
+mean_hold = np.mean(list_all)
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+#plt.axhline(y = mean_all, color = 'cornflowerblue', linestyle = '--', lw=2)
+plt.axhline(y = mean_nonhold, color = 'tab:orange', linestyle = '--', lw=2)
+plt.axhline(y = mean_hold, color = 'tab:purple', linestyle = '--', lw=2)
+# bp2 = plt.boxplot([boxlist_fm100[k] for k in range(11)], widths=0.18, patch_artist=True,
+#                   whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,11.8,1),
+#                   medianprops = {'color': 'k'})
+bp3 = plt.boxplot([boxlist_nonhold[k] for k in range(11)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.9,11.9,1),
+                  medianprops = {'color': 'k'})
+bp4 = plt.boxplot([boxlist_hold[k] for k in range(10)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.1,11.1,1),
+                  medianprops = {'color': 'k'})
+#[bp2['boxes'][k].set(color='cornflowerblue') for k in range(11)]
+[bp3['boxes'][k].set(color='tab:orange') for k in range(11)]
+[bp4['boxes'][k].set(color='tab:purple') for k in range(10)]
+# plt.xticks(np.arange(1,12,1), ('IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert',
+#                                'Sierra','Colo. Plateau','S. Rockies','N. Rockies',
+#                                'NV/UT Mtn.','Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.xticks(np.arange(1,12,1), ('','','','','','','','','','',''), fontsize = 14, rotation=45)
+plt.yticks(np.arange(5,40.1,5), fontsize=20)
+plt.ylabel('VPD (hPa)', fontsize = 20)
+#plt.title('(a) Vapor Pressure Deficit', size=26)
+#plt.ylim(bottom=5)
+plt.ylim(top=40)
+fig.subplots_adjust(bottom=0.25)
+
+# Plot Figure 4a
+
+medians_hold = [np.median(boxlist_hold[k]) for k in range(10)] # calculate holdover medians
+medians_nonhold = [np.median(boxlist_nonhold[k]) for k in range(10)] # calculate promptly-detected medians
+diff = np.array(medians_hold) - np.array(medians_nonhold) # calculate differences
+
+# import shapefile of US states, and subset to western US
+states = gpd.read_file('cb_2018_us_state_5m.shp')
+states.crs
+states = states.to_crs("EPSG:4326")
+states = states[states.NAME.isin(['Washington','Oregon','Idaho','Montana',
+                                  'California','Nevada','Utah','Wyoming',
+                                  'Colorado','Arizona','New Mexico'])]
+
+# import ecoprovinces shapefile
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+
+# same data as the differences from above, but sorted and cleaned to include NANs in the right ecoprovinces
+ecoprovinces['diff'] = np.array([np.nan,-4.2,np.nan,np.nan,np.nan,-6.4,-9.3,-4.9,
+                                 -4,-4.2,np.nan,-3.8,-4.1,np.nan,-4.8,-4.6])
+
+ecoplot = ecoprovinces.plot(column='diff', legend=True, cmap=plt.cm.get_cmap('BrBG_r',12), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=-12, vmax=12, legend_kwds = dict(ticks = np.arange(-12,12.01,4)))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=20)
+#plt.title('(a) $\mathregular{VPD_{holdover}}$ - $\mathregular{VPD_{concurrent}}$', size=15)
+
+# Plot Figure 4d
+
+# open TMAX dataframe
+infile = open("all_matched2_tmax_0.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+
+# ignore column name 'prec', this was carried over from previous version. This column now contains Tmax
+all_matched['prec'] = all_matched['prec'] - 273.15 # convert K to C 
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_fm100 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([0,1])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_tmax_0.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+# ignore column name 'prec', this was carried over from previous version. This column now contains Tmax
+all_matched['prec'] = all_matched['prec'] - 273.15 # convert K to C 
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_nonhold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([2,3,4,5])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_tmax_0.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+# ignore column name 'prec', this was carried over from previous version. This column now contains Tmax
+all_matched['prec'] = all_matched['prec'] - 273.15 # convert K to C 
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_hold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_fm100[k]) # only 3716 fires since 10 are excluded from low-sample provinces
+mean_all = np.mean(list_all)
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_nonhold[k]) 
+mean_nonhold = np.mean(list_all)
+
+boxlist_hold2 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde] # including amde for full distribution
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_hold2[k]) 
+mean_hold = np.mean(list_all)
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+#plt.axhline(y = mean_all, color = 'cornflowerblue', linestyle = '--', lw=2)
+plt.axhline(y = mean_nonhold, color = 'tab:orange', linestyle = '--', lw=2)
+plt.axhline(y = mean_hold, color = 'tab:purple', linestyle = '--', lw=2)
+# bp2 = plt.boxplot([boxlist_fm100[k] for k in range(11)], widths=0.18, patch_artist=True,
+#                   whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,11.8,1),
+#                   medianprops = {'color': 'k'})
+bp3 = plt.boxplot([boxlist_nonhold[k] for k in range(11)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.9,11.9,1),
+                  medianprops = {'color': 'k'})
+bp4 = plt.boxplot([boxlist_hold[k] for k in range(10)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.1,11.1,1),
+                  medianprops = {'color': 'k'})
+#[bp2['boxes'][k].set(color='cornflowerblue') for k in range(11)]
+[bp3['boxes'][k].set(color='tab:orange') for k in range(11)]
+[bp4['boxes'][k].set(color='tab:purple') for k in range(10)]
+# plt.xticks(np.arange(1,12,1), ('IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert',
+#                                'Sierra','Colo. Plateau','S. Rockies','N. Rockies',
+#                                'NV/UT Mtn.','Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.xticks(np.arange(1,12,1), ('','','','','','','','','','',''), fontsize = 14, rotation=45)
+plt.yticks(np.arange(15,40.1,5), fontsize=20)
+plt.ylabel('$\mathregular{T_{max}}$ ($\circ{C}$)', fontsize = 20)
+#plt.title('(b) Maximum temperature', size=26)
+#plt.ylim(bottom=3)
+fig.subplots_adjust(bottom=0.25)
+
+# Plot Figure 4c
+
+medians_hold = [np.median(boxlist_hold[k]) for k in range(10)]
+medians_nonhold = [np.median(boxlist_nonhold[k]) for k in range(10)]
+diff = np.array(medians_hold) - np.array(medians_nonhold)
+
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+ecoprovinces['diff'] = np.array([np.nan,-2.4,np.nan,np.nan,np.nan,-5.2,-5.6,-4.1,
+                                 -2,-4.2,np.nan,-2.2,-3,np.nan,-3.6,-3.9])
+
+ecoplot = ecoprovinces.plot(column='diff', legend=True, cmap=plt.cm.get_cmap('RdBu_r',16), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=-8, vmax=8, legend_kwds = dict(ticks = np.arange(-8,8.01,2)))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=20)
+
+# Plot Figure 4f
+
+# open dataframe of FM100
+infile = open("all_matched2_fm100.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_fm100 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([0,1])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_fm100.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_nonhold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([2,3,4,5])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_fm100.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_hold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc] # dropping american desert here
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_fm100[k]) # only 3716 fires since 10 are excluded from low-sample provinces
+mean_all = np.mean(list_all)
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_nonhold[k]) 
+mean_nonhold = np.mean(list_all)
+
+boxlist_hold2 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde] # including amde for full distribution
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_hold2[k]) 
+mean_hold = np.mean(list_all)
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+#plt.axhline(y = mean_all, color = 'cornflowerblue', linestyle = '--', lw=2)
+plt.axhline(y = mean_nonhold, color = 'tab:orange', linestyle = '--', lw=2)
+plt.axhline(y = mean_hold, color = 'tab:purple', linestyle = '--', lw=2)
+# bp2 = plt.boxplot([boxlist_fm100[k] for k in range(11)], widths=0.18, patch_artist=True,
+#                   whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,11.8,1),
+#                   medianprops = {'color': 'k'})
+bp3 = plt.boxplot([boxlist_nonhold[k] for k in range(11)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.9,11.9,1),
+                  medianprops = {'color': 'k'})
+bp4 = plt.boxplot([boxlist_hold[k] for k in range(10)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.1,11.1,1),
+                  medianprops = {'color': 'k'})
+#[bp2['boxes'][k].set(color='cornflowerblue') for k in range(11)]
+[bp3['boxes'][k].set(color='tab:orange') for k in range(11)]
+[bp4['boxes'][k].set(color='tab:purple') for k in range(10)]
+# plt.xticks(np.arange(1,12,1), ('IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert',
+#                                'Sierra','Colo. Plateau','S. Rockies','N. Rockies',
+#                                'NV/UT Mtn.','Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.xticks(np.arange(1,12,1), ('','','','','','','','','','',''), fontsize = 14, rotation=45)
+plt.yticks(np.arange(3,15.1,2), fontsize=20)
+plt.ylabel('$\mathregular{FM_{100}}$ (%)', fontsize = 20)
+#plt.title('(c) 100-hr fuel moisture', size=26)
+plt.ylim(bottom=3)
+fig.subplots_adjust(bottom=0.25)
+
+# Plot Figure 4e
+
+medians_hold = [np.median(boxlist_hold[k]) for k in range(10)]
+medians_nonhold = [np.median(boxlist_nonhold[k]) for k in range(10)]
+diff = np.array(medians_hold) - np.array(medians_nonhold)
+
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+ecoprovinces['diff'] = np.array([np.nan,2,np.nan,np.nan,np.nan,1.8,2.6,0.7,
+                                 0.8,0.8,np.nan,0.4,2.1,np.nan,1.7,2.2])
+
+ecoplot = ecoprovinces.plot(column='diff', legend=True, cmap=plt.cm.get_cmap('BrBG',12), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=-3, vmax=3, legend_kwds = dict(ticks = np.arange(-3,3.01,1)))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=20)
+
+# Plot Figure 4h
+
+# import dataframe of FM1000
+infile = open("all_matched2_fm1000.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_fm100 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([0,1])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_fm1000.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_nonhold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+infile = open("all_matched2.pkl",'rb') # precip
+matched_gdf = pickle.load(infile)
+infile.close()
+matched_gdf = matched_gdf[matched_gdf.lag.isin([2,3,4,5])]
+idxx = matched_gdf.index.values
+
+infile = open("all_matched2_fm1000.pkl",'rb') 
+all_matched = pickle.load(infile)
+infile.close()
+all_matched = all_matched.loc[idxx]
+
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_hold = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_fm100[k]) # only 3716 fires since 10 are excluded from low-sample provinces
+mean_all = np.mean(list_all)
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_nonhold[k]) 
+mean_nonhold = np.mean(list_all)
+
+boxlist_hold2 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde] # including amde for full distribution
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_hold2[k]) 
+mean_hold = np.mean(list_all)
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+#plt.axhline(y = mean_all, color = 'cornflowerblue', linestyle = '--', lw=2)
+plt.axhline(y = mean_nonhold, color = 'tab:orange', linestyle = '--', lw=2)
+plt.axhline(y = mean_hold, color = 'tab:purple', linestyle = '--', lw=2)
+# bp2 = plt.boxplot([boxlist_fm100[k] for k in range(11)], widths=0.18, patch_artist=True,
+#                   whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,11.8,1),
+#                   medianprops = {'color': 'k'})
+bp3 = plt.boxplot([boxlist_nonhold[k] for k in range(11)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.9,11.9,1),
+                  medianprops = {'color': 'k'})
+bp4 = plt.boxplot([boxlist_hold[k] for k in range(10)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.1,11.1,1),
+                  medianprops = {'color': 'k'})
+#[bp2['boxes'][k].set(color='cornflowerblue') for k in range(11)]
+[bp3['boxes'][k].set(color='tab:orange') for k in range(11)]
+[bp4['boxes'][k].set(color='tab:purple') for k in range(10)]
+plt.xticks(np.arange(1,12,1), ('IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert',
+                                'Sierra','Colo. Plateau','S. Rockies','N. Rockies',
+                                'NV/UT Mtn.','Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.yticks(np.arange(3,15.1,2), fontsize=20)
+plt.ylabel('$\mathregular{FM_{1000}}$ (%)', fontsize = 20)
+#plt.title('(d) 1000-hr fuel moisture', size=26)
+plt.ylim(bottom=3)
+fig.subplots_adjust(bottom=0.25)
+
+# Plot Figure 4g
+
+medians_hold = [np.median(boxlist_hold[k]) for k in range(10)]
+medians_nonhold = [np.median(boxlist_nonhold[k]) for k in range(10)]
+diff = np.array(medians_hold) - np.array(medians_nonhold)
+
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+ecoprovinces['diff'] = np.array([np.nan,2,np.nan,np.nan,np.nan,0.4,2.5,0.5,
+                                 0.2,0.9,np.nan,0.6,1,np.nan,1,1.2])
+
+ecoplot = ecoprovinces.plot(column='diff', legend=True, cmap=plt.cm.get_cmap('BrBG',12), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=-3, vmax=3, legend_kwds = dict(ticks = np.arange(-3,3.01,1)))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=20)
+
