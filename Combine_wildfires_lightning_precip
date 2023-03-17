@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
 '''
-NOTE: This code only combines wildfire, lightning, and precipitation data for fires which had lightning on the wildfire discovery date (Day 0). 
+NOTE: This code only combines wildfire, lightning, and MRMS precipitation data for fires which had lightning on the wildfire discovery date (Day 0). 
 The lagged days (Day-1, Day-2, etc) were processed separately using the same code but with a date offset corresponding to the lag. 
+The code was repeated for the IMERG and gridMET precipitation datasets.
 '''
 
 import pickle
@@ -314,5 +315,6 @@ cg_precs_all = np.concatenate([cg_precs_2015,cg_precs_2016,cg_precs_2017,cg_prec
 np.save('cp_precs_all0_closest_cg_2km.npy',cg_precs_all)
 
 # After the above code is ran for all lags (Day-0 through Day-5), the results are combined into a dataframe "all_matched2.pkl" 
-# This dataframe is available on the Zenodo repository
+# This dataframe is available on the Zenodo repository, as are the "all_matched2_imerg.pkl" and "all_matched2_gridmet.pkl"
+# dataframes for lightning-fires combined with the other two precip datasets (IMERG and gridMET).
 
