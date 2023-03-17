@@ -1,1 +1,117 @@
 #!/usr/bin/env python3
+
+import pandas as pd
+import numpy as np
+import pickle
+import matplotlib.pyplot as plt   
+from mpl_toolkits.basemap import Basemap
+
+# set figure font to Arial
+import matplotlib as mpl
+mpl.rc('font',family='Arial')
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# open dataframe of lightning-caused fires and MRMS precipitation amounts
+infile = open("all_matched2.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# split out ecoprovinces for MRMS precip
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_mrms0 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_mrms0[k]) 
+
+boxlist_mrms = [list_all,imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+# open dataframe of lightning-caused fires and IMERG precipitation amounts
+infile = open("all_matched2_imerg.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# split out ecoprovinces for IMERG precip
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_imerg0 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_imerg0[k]) 
+
+boxlist_imerg = [list_all,imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+# open dataframe of lightning-caused fires and gridMET precipitation amounts
+infile = open("all_matched2_gridmet.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# split out ecoprovinces for gridMET precip
+aznm = list(all_matched[all_matched.ecoprov == 1].prec)
+sier = list(all_matched[all_matched.ecoprov == 14].prec)
+casc = list(all_matched[all_matched.ecoprov == 5].prec)
+nvut = list(all_matched[all_matched.ecoprov == 12].prec)
+sroc = list(all_matched[all_matched.ecoprov == 15].prec)
+colo = list(all_matched[all_matched.ecoprov == 6].prec)
+nroc = list(all_matched[all_matched.ecoprov == 11].prec)
+mroc = list(all_matched[all_matched.ecoprov == 9].prec)
+imde = list(all_matched[all_matched.ecoprov == 7].prec)
+amde = list(all_matched[all_matched.ecoprov == 0].prec)
+imsd = list(all_matched[all_matched.ecoprov == 8].prec)
+
+boxlist_gridmet0 = [imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+list_all = []
+for k in range(11):
+    list_all.extend(boxlist_gridmet0[k]) 
+
+boxlist_gridmet = [list_all,imsd,aznm,mroc,imde,sier,colo,sroc,nroc,nvut,casc,amde]
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+bp = plt.boxplot([boxlist_mrms[k] for k in range(12)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,12.8,1),
+                  medianprops = {'color': 'k'})
+bp2 = plt.boxplot([boxlist_imerg[k] for k in range(12)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1,13,1),
+                  medianprops = {'color': 'k'})
+bp3 = plt.boxplot([boxlist_gridmet[k] for k in range(12)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.2,13.2,1),
+                  medianprops = {'color': 'k'})
+[bp['boxes'][k].set(color='tab:blue') for k in range(12)]
+[bp2['boxes'][k].set(color='tab:brown') for k in range(12)]
+[bp3['boxes'][k].set(color='tab:green') for k in range(12)]
+plt.xticks(np.arange(1,13,1), ('','IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert','Sierra',
+                               'Colo. Plateau','S. Rockies','N. Rockies','NV/UT Mtn.',
+                               'Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.axhline(y=2.5,ls='--',c='firebrick')
+plt.yticks(np.arange(0,18.1,2), fontsize=16)
+plt.ylabel('Ignition precipitation (mm)', fontsize = 20)
+plt.title('Ignition precipitation distributions - all datasets', size=20)
+plt.ylim(top=18)
+fig.subplots_adjust(bottom=0.25)
