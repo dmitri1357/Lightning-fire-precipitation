@@ -1,2 +1,261 @@
 #!/usr/bin/env python3
 
+import pandas as pd
+import numpy as np
+import pickle
+import geopandas as gpd
+import matplotlib.pyplot as plt   
+from mpl_toolkits.basemap import Basemap
+
+# set figure font to Arial
+import matplotlib as mpl
+mpl.rc('font',family='Arial')
+
+'''
+all datasets for this code can be downloaded from Zenodo.org (see README for details).
+'''
+
+# Plot Figure 2a
+
+# open dataframe of lightning-caused fires and MRMS precipitation amounts
+infile = open("all_matched2.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# open shapefile of ecoprovinces as Geodataframe
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+
+# subset to just promptly-detected fires (Day 0-1)
+lag0 = matched_gdf[matched_gdf.lag.isin([0,1])]
+
+eco_counts = all_matched.groupby('ecoprov').agg('count') # count fires in each ecoprovince
+eco_precs = all_matched.groupby('ecoprov').agg('median') # get median precipitation amount in each ecoprovince
+
+eco_counts1 = list(eco_counts.lat)
+eco_counts1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_counts1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['nfires'] = eco_counts1 # add fire count to geodataframe
+eco_precs1 = list(eco_precs.prec)
+eco_precs1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_precs1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['prec'] = eco_precs1 # add precip amounts to geodataframe
+
+# import shapefile of US states, and subset to western US
+states = gpd.read_file('cb_2018_us_state_5m.shp')
+states = states.to_crs("EPSG:4326")
+states = states[states.NAME.isin(['Washington','Oregon','Idaho','Montana',
+                                  'California','Nevada','Utah','Wyoming',
+                                  'Colorado','Arizona','New Mexico'])]
+
+# same data as the medians from above, but sorted and cleaned to include NANs in the right ecoprovinces
+prec_cleaned = np.array([2.1,4.6,np.nan,np.nan,np.nan,3,2.5,2.2,1.7,
+                         2.3,np.nan,2.2,2.4,np.nan,4.2,2.3])
+ecoprovinces['prec_cleaned'] = prec_cleaned
+
+ecoplot = ecoprovinces.plot(column='prec_cleaned', legend=True, cmap=plt.cm.get_cmap('summer_r',14), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=1, vmax=8, legend_kwds = dict(ticks = np.arange(1,8.01,1),
+                                                                   #orientation = 'horizontal',
+                                                                   extend = 'max',
+                                                                   aspect = 45))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+plt.title('(a) Concurrent fires', size=25)
+#plt.title('(b) Holdover fires', size=25)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=15)
+
+# Plot Figure 2b
+
+# open dataframe of lightning-caused fires and MRMS precipitation amounts
+infile = open("all_matched2.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# open shapefile of ecoprovinces as Geodataframe
+ecoprovinces = gpd.read_file('western_ecoprovinces.shp')
+
+# subset to holdover fires (Day 2-5)
+hold = matched_gdf[matched_gdf.lag.isin([2,3,4,5])]
+
+eco_counts = all_matched.groupby('ecoprov').agg('count') # count fires in each ecoprovince
+eco_precs = all_matched.groupby('ecoprov').agg('median') # get median precipitation amount in each ecoprovince
+
+eco_counts1 = list(eco_counts.lat)
+eco_counts1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_counts1.insert(3,0) # handle ecoprovince with no lightning-caused fires
+eco_counts1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+eco_counts1.insert(13,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['nfires'] = eco_counts1 # add fire count to geodataframe
+eco_precs1 = list(eco_precs.prec)
+eco_precs1.insert(2,0) # handle ecoprovince with no lightning-caused fires
+eco_precs1.insert(3,0) # handle ecoprovince with no lightning-caused fires
+eco_precs1.insert(4,0) # handle ecoprovince with no lightning-caused fires
+eco_precs1.insert(13,0) # handle ecoprovince with no lightning-caused fires
+ecoprovinces['prec'] = eco_precs1 # add precip amounts to geodataframe
+
+# import shapefile of US states, and subset to western US
+states = gpd.read_file('cb_2018_us_state_5m.shp')
+states = states.to_crs("EPSG:4326")
+states = states[states.NAME.isin(['Washington','Oregon','Idaho','Montana',
+                                  'California','Nevada','Utah','Wyoming',
+                                  'Colorado','Arizona','New Mexico'])]
+
+# same data as the medians from above, but sorted and cleaned to include NANs in the right ecoprovinces
+prec_cleaned = np.array([np.nan,7.7,np.nan,np.nan,np.nan,5.3,4.5,3.0,4.8,
+                         3.4,np.nan,6.1,4.6,np.nan,5.7,5.8])
+ecoprovinces['prec_cleaned'] = prec_cleaned
+
+ecoplot = ecoprovinces.plot(column='prec_cleaned', legend=True, cmap=plt.cm.get_cmap('summer_r',14), 
+                            edgecolor='k', missing_kwds = dict(color = "0.5"), 
+                            vmin=1, vmax=8, legend_kwds = dict(ticks = np.arange(1,8.01,1),
+                                                                   #orientation = 'horizontal',
+                                                                   extend = 'max',
+                                                                   aspect = 45))
+ecoplot.axis('off')
+states.boundary.plot(ax=ecoplot, edgecolor='k', lw=1)
+plt.title('(b) MRMS lag 2-5', size=25)
+fig = ecoplot.figure
+cb_ax = fig.axes[1]
+cb_ax.tick_params(labelsize=20)
+
+# Plot Figure 2c
+
+# open dataframe of lightning-caused fires and MRMS precipitation amounts
+infile = open("all_matched2.pkl",'rb')
+all_matched = pickle.load(infile)
+infile.close()
+
+# break out precip data into ecoprovinces, for all fires
+region0 = all_matched[all_matched.ecoprov == 0]
+region1 = all_matched[all_matched.ecoprov == 1]
+region5 = all_matched[all_matched.ecoprov == 5]
+region6 = all_matched[all_matched.ecoprov == 6]
+region7 = all_matched[all_matched.ecoprov == 7]
+region8 = all_matched[all_matched.ecoprov == 8]
+region9 = all_matched[all_matched.ecoprov == 9]
+region11 = all_matched[all_matched.ecoprov == 11]
+region12 = all_matched[all_matched.ecoprov == 12]
+region14 = all_matched[all_matched.ecoprov == 14]
+region15 = all_matched[all_matched.ecoprov == 15]
+
+# break out precip data into ecoprovinces, for all promptly-detected fires
+region0nonhold = region0[region0.lag.isin([0,1])]
+region1nonhold = region1[region1.lag.isin([0,1])]
+region5nonhold = region5[region5.lag.isin([0,1])]
+region6nonhold = region6[region6.lag.isin([0,1])]
+region7nonhold = region7[region7.lag.isin([0,1])]
+region8nonhold = region8[region8.lag.isin([0,1])]
+region9nonhold = region9[region9.lag.isin([0,1])]
+region11nonhold = region11[region11.lag.isin([0,1])]
+region12nonhold = region12[region12.lag.isin([0,1])]
+region14nonhold = region14[region14.lag.isin([0,1])]
+region15nonhold = region15[region15.lag.isin([0,1])]
+
+# break out precip data into ecoprovinces, for holdover fires
+region0hold = region0[region0.lag.isin([2,3,4,5])]
+region1hold = region1[region1.lag.isin([2,3,4,5])]
+region5hold = region5[region5.lag.isin([2,3,4,5])]
+region6hold = region6[region6.lag.isin([2,3,4,5])]
+region7hold = region7[region7.lag.isin([2,3,4,5])]
+region8hold = region8[region8.lag.isin([2,3,4,5])]
+region9hold = region9[region9.lag.isin([2,3,4,5])]
+region11hold = region11[region11.lag.isin([2,3,4,5])]
+region12hold = region12[region12.lag.isin([2,3,4,5])]
+region14hold = region14[region14.lag.isin([2,3,4,5])]
+region15hold = region15[region15.lag.isin([2,3,4,5])]
+
+# Adding the full-domain MRMS precip amounts
+cg_precs_all5 = np.load('cp_precs_all5_closest_cg_2km.npy')
+cg_precs_all4 = np.load('cp_precs_all4_closest_cg_2km.npy')
+cg_precs_all3 = np.load('cp_precs_all3_closest_cg_2km.npy')
+cg_precs_all2 = np.load('cp_precs_all2_closest_cg_2km.npy')
+cg_precs_all1 = np.load('cp_precs_all1_closest_cg_2km.npy')
+cg_precs_all0 = np.load('cp_precs_all0_closest_cg_2km.npy')
+
+precs_holdover1 = np.concatenate([cg_precs_all2,cg_precs_all3,
+                                 cg_precs_all4,cg_precs_all5])
+precs_nonholdover1 = np.concatenate([cg_precs_all0,cg_precs_all1])
+
+precs_all_days1 = np.concatenate([cg_precs_all0,cg_precs_all1,cg_precs_all2,cg_precs_all3,
+                                 cg_precs_all4,cg_precs_all5])
+
+# all-LIW precip amounts
+list0 = list(region0.prec)
+list1 = list(region1.prec)
+list5 = list(region5.prec)
+list6 = list(region6.prec)
+list7 = list(region7.prec)
+list8 = list(region8.prec)
+list9 = list(region9.prec)
+list11 = list(region11.prec)
+list12 = list(region12.prec)
+list14 = list(region14.prec)
+list15 = list(region15.prec)
+boxlist_all = [precs_all_days1,list8,list1,list9,list7,list14,list6,
+                   list15,list11,list12,list5,list0] 
+
+# medians for SI tables
+[np.median(boxlist_all[k]) for k in range(11)]
+
+# promptly-detected precip amounts
+list0 = list(region0nonhold.prec)
+list1 = list(region1nonhold.prec)
+list5 = list(region5nonhold.prec)
+list6 = list(region6nonhold.prec)
+list7 = list(region7nonhold.prec)
+list8 = list(region8nonhold.prec)
+list9 = list(region9nonhold.prec)
+list11 = list(region11nonhold.prec)
+list12 = list(region12nonhold.prec)
+list14 = list(region14nonhold.prec)
+list15 = list(region15nonhold.prec)
+boxlist_nonhold = [precs_nonholdover1,list8,list1,list9,list7,list14,list6,
+                   list15,list11,list12,list5,list0] 
+
+# medians for SI tables
+[np.median(boxlist_nonhold[k]) for k in range(11)]
+
+# holdover precip amounts
+list0 = list(region0hold.prec)
+list1 = list(region1hold.prec)
+list5 = list(region5hold.prec)
+list6 = list(region6hold.prec)
+list7 = list(region7hold.prec)
+list8 = list(region8hold.prec)
+list9 = list(region9hold.prec)
+list11 = list(region11hold.prec)
+list12 = list(region12hold.prec)
+list14 = list(region14hold.prec)
+list15 = list(region15hold.prec)
+boxlist_hold = [precs_holdover1,list8,list1,list9,list7,list14,list6,
+                   list15,list11,list12,list5] # list0 (american desert) excluded - too few holdovers
+
+# medians for SI tables
+[np.median(boxlist_hold[k]) for k in range(10)]
+
+fig = plt.figure(figsize=(10,6.8))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+bp2 = plt.boxplot([boxlist_all[k] for k in range(12)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(0.8,12.8,1),
+                  medianprops = {'color': 'k', 'linewidth': 1})
+bp3 = plt.boxplot([boxlist_nonhold[k] for k in range(12)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1,13,1),
+                  medianprops = {'color': 'k', 'linewidth': 1})
+bp4 = plt.boxplot([boxlist_hold[k] for k in range(11)], widths=0.18, patch_artist=True,
+                  whis = [10,90], sym = 'o', showfliers = False, positions=np.arange(1.2,12.2,1),
+                  medianprops = {'color': 'k', 'linewidth': 1})
+[bp2['boxes'][k].set(color='cornflowerblue') for k in range(12)]
+[bp3['boxes'][k].set(color='tab:orange') for k in range(12)]
+[bp4['boxes'][k].set(color='tab:purple') for k in range(11)]
+plt.xticks(np.arange(1,13,1), ('','IM Semi-Des.','AZ/NM Mtn.','Mid. Rockies','IM Desert',
+                               'Sierra','Colo. Plateau','S. Rockies','N. Rockies',
+                               'NV/UT Mtn.','Cascades','Amer. Desert'), fontsize = 14, rotation=45)
+plt.axhline(y=2.5,ls='--',c='firebrick')
+plt.yticks(np.arange(0,24.1,2), fontsize=16)
+plt.ylabel('Ignition precipitation (mm)', fontsize = 20)
+plt.title('(c) Ignition precipitation distributions', size=25)
+plt.ylim(bottom=-4)
+fig.subplots_adjust(bottom=0.25)
+
