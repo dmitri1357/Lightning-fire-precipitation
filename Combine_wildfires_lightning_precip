@@ -20,10 +20,12 @@ import rasterio
 from rasterio.transform import from_origin
 
 '''
-all datasets for this code can be downloaded from Zenodo.org (see README for details).
+all datasets for this code, with the exception of the NLDN lightning data, can be downloaded from Zenodo.org (see README for details).
 '''
 
 # geodataframe of NLDN lightning point locations
+# note, this dataset is not publicly available and as a result not shared on Zenodo
+# to obtain raw NLDN lightning point data, please contact Vaisala, Inc. or Earth Networks
 infile = open("nldn_gdf.pkl",'rb')
 nldn_gdf = pickle.load(infile)
 infile.close()
