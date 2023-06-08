@@ -259,3 +259,92 @@ plt.title('(c) Ignition precipitation distributions', size=25)
 plt.ylim(bottom=-4)
 fig.subplots_adjust(bottom=0.25)
 
+# Plot Figure 2d
+
+# class_a = not included (<0.1 ha)
+class_b = all_matched[(all_matched.hectares>=1)&(all_matched.hectares<4.047)] 
+class_c = all_matched[(all_matched.hectares>=4.047)&(all_matched.hectares<40.47)] 
+class_d = all_matched[(all_matched.hectares>=40.47)&(all_matched.hectares<121.406)] 
+class_e = all_matched[(all_matched.hectares>=121.406)&(all_matched.hectares<404.69)] 
+class_f = all_matched[(all_matched.hectares>=404.69)&(all_matched.hectares<2023.43)] 
+class_g = all_matched[all_matched.hectares >= 2023.43] 
+
+prec_b = np.median(class_b.prec)
+prec_c = np.median(class_c.prec)
+prec_d = np.median(class_d.prec)
+prec_e = np.median(class_e.prec)
+prec_f = np.median(class_f.prec)
+prec_g = np.median(class_g.prec)
+
+fire_sizes = [class_b.shape[0],class_c.shape[0],class_d.shape[0],
+              class_e.shape[0],class_f.shape[0],class_g.shape[0]]
+
+prec_list = [prec_b,prec_c,prec_d,prec_e,prec_f,prec_g]
+fig = plt.figure(figsize=(9,7))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+plt.plot(prec_list,'D--',c='firebrick',markersize=10)
+plt.xticks(np.arange(6), ('Class B','Class C','Class D','Class E',
+                               'Class F','Class G'), fontsize = 20)
+plt.xlabel('NWCG fire size class', fontsize = 27)
+plt.yticks(np.arange(2.4,3.21,0.1),fontsize = 20)
+plt.ylabel('Median ignition precip (mm)', fontsize = 27)
+plt.title('(d) Ignition precip by fire size', size=27)
+for i in np.arange(6):
+    sz = fire_sizes[i]
+    j = prec_list[i]
+    if i < 5:
+        plt.annotate("{}".format(int(sz)), xy=(i, j), xytext=(10,10), size='20',
+                     textcoords='offset points', ha='center')
+    else:
+        plt.annotate("{}".format(int(sz)), xy=(i, j), xytext=(0,10), size='20',
+                     textcoords='offset points', ha='center')
+       
+# Plot Figure 2e
+
+infile = open("all_matched2_treecover.pkl",'rb')
+all_matched_treecover = pickle.load(infile)
+infile.close()
+
+all_matched['treecover'] = all_matched_treecover.prec
+
+# sensitivity of precip threshold to tree cover
+cover0 = all_matched[all_matched.treecover.between(0,9)] # 627
+cover1 = all_matched[all_matched.treecover.between(10,19)] # 627
+cover2 = all_matched[all_matched.treecover.between(20,29)] # 627
+cover3 = all_matched[all_matched.treecover.between(30,39)] # 627
+cover4 = all_matched[all_matched.treecover.between(40,49)] # 627
+cover5 = all_matched[all_matched.treecover.between(50,59)] # 627
+cover6 = all_matched[all_matched.treecover.between(60,69)] # 627
+cover7 = all_matched[all_matched.treecover.between(70,79)] # 627
+
+rain0 = np.median(cover0.prec)
+rain1 = np.median(cover1.prec)
+rain2 = np.median(cover2.prec)
+rain3 = np.median(cover3.prec)
+rain4 = np.median(cover4.prec)
+rain5 = np.median(cover5.prec)
+rain6 = np.median(cover6.prec)
+rain7 = np.median(cover7.prec)
+
+cover_sizes = [cover0.shape[0],cover1.shape[0],cover2.shape[0],cover3.shape[0],
+              cover4.shape[0],cover5.shape[0],cover6.shape[0],cover7.shape[0]]
+
+rain_list = [rain0,rain1,rain2,rain3,rain4,rain5,rain6,rain7]
+fig = plt.figure(figsize=(9,7))
+plt.grid(linewidth=0.5, color='0.5', alpha=0.5, linestyle='-.')
+plt.plot(rain_list,'D--',c='firebrick',markersize=10)
+plt.xticks(np.arange(8), ('0-9','10-19','20-29','30-39','40-49',
+                               '50-59','60-69','$\geq$'+'70'), fontsize = 20)
+plt.xlabel('MODIS percent tree cover', fontsize = 27)
+plt.yticks(np.arange(2.2,4.01,0.2),fontsize = 20)
+plt.ylabel('Median ignition precip (mm)', fontsize = 27)
+plt.title('(e) Ignition precip by percent tree cover', size=27)
+for i in np.arange(8):
+    sz = cover_sizes[i]
+    j = rain_list[i]
+    if i in [5,6,7]:
+        plt.annotate("{}".format(int(sz)), xy=(i, j), xytext=(0,-23), size='20',
+                     textcoords='offset points', ha='center')
+    else:
+        plt.annotate("{}".format(int(sz)), xy=(i, j), xytext=(28,-5), size='20',
+                     textcoords='offset points', ha='center')
